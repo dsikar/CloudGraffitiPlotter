@@ -198,27 +198,49 @@ void moveX(int iX) {
 }
 
 void windX(int iX) {
-  if(iX > 0) {
+  int iMove = iX - iCurrPosX;
+   if(SERIAL_DEBUG) {
+    Serial.print("windX(int iX) ~ iX = ");
+    Serial.println(iX);
+    Serial.print("abs(iX - iCurrPosX) = ");
+    Serial.println(abs(iX - iCurrPosX)); 
+  }
+  if(iMove > 0) {
+    if(SERIAL_DEBUG) {
+      Serial.print("setHigh(iDirX)"); 
+    }      
     setHigh(iDirX);
   } else {
+    if(SERIAL_DEBUG) {
+      Serial.print("setLow(iDirX)"); 
+    }     
     setLow(iDirX);
   }
-  int iTotalSteps = abs(iX - iCurrPosX) * iCoordMult;
-  for(int i = 0; i <= iCoordMult; i++) {
+  int iTotalSteps = abs(iMove) * iCoordMult;
+   if(SERIAL_DEBUG) {
+    Serial.print("iTotalSteps = ");
+    Serial.println(iTotalSteps);
+   }  
+  for(int i = 0; i <= iTotalSteps; i++) {
     oneStep(iStepX);
   }
   // keep track of where we are
   iCurrPosX = abs(iX);
+  if(SERIAL_DEBUG) {
+    Serial.print("iCurrPosX = ");
+    Serial.println(iCurrPosX);
+  }   
 }
 
 void windY(int iY) {
-  if(iY > 0) {
+  int iMove = iY - iCurrPosY;  
+  if(iMove > 0) {
     setHigh(iDirY);
   } else {
     setLow(iDirY);
   }
-  int iTotalSteps = abs(iY - iCurrPosY) * iCoordMult;
-  for(int i = 0; i <= iCoordMult; i++) {
+  int iTotalSteps = abs(iMove) * iCoordMult;
+  for(int i = 0; i <= iTotalSteps; i++) {
     oneStep(iStepY);
   }
   // keep track of where we are
