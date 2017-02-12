@@ -1,5 +1,8 @@
 #include <Servo.h> 
 
+// Serial debug. Set to 1 to debug.
+#define SERIAL_DEBUG 1
+
 // Servo objects
 Servo spray1Servo;
 Servo spray2Servo;
@@ -9,31 +12,39 @@ int spray1Pin = 10;
 int spray2Pin = 11;
 
 // Stepper pins
-int iDirA = 6;
-int iStepA = 7;
-int iDirB = 8;
-int iStepB = 9;
+int iDirX = 6;
+int iStepX = 7;
+int iDirY = 8;
+int iStepY = 9;
 
 // Stepper step delay (less delay = faster)
 int iStepDelay = 2;
 // Serial parsing string
 String txtMsg;
 // Stepper motor move positions
-int pos [] = {0,0};    
 int cnt;
-
 int iH;
 int iV;
+int iNextPosX = 0; // or initial position e.g. 50
+int iNextPosY = 0; // or initial position e.g. 50
+
+// set origin
+int iCurrPosX = 64; //cm
+int iCurrPosY = 64; //cm
+
+// multiplier ~ turn cm into steps
+int iCoordMult = 47; // (46.94836 steps move 1cm)
+
 
 // the setup function runs once when you press reset or power the board
 void setup() {
   Serial.begin(9600);
   // initialize digital pin 13 as an output.
 
-  pinMode(iDirA, OUTPUT);
-  pinMode(iStepA, OUTPUT);
-  pinMode(iDirB, OUTPUT);
-  pinMode(iStepB, OUTPUT);
+  pinMode(iDirX, OUTPUT);
+  pinMode(iStepX, OUTPUT);
+  pinMode(iDirY, OUTPUT);
+  pinMode(iStepY, OUTPUT);
   // initSteppers();
   // manually home steppers 
  // init servos
@@ -45,8 +56,8 @@ void setup() {
 }
 
 void initSteppers() {
-  setHigh(iDirA);
-  setHigh(iDirB);
+  setHigh(iDirX);
+  setHigh(iDirY);
 }
 
 void setHigh(int iPin) {
@@ -70,15 +81,15 @@ void turnStepper(int iStep) {
 void loop() {
   /*
   while(true){
-    setHigh(iDirA);
-    turnStepper(iStepA); 
-    setHigh(iDirB);
-    turnStepper(iStepB);
+    setHigh(iDirX);
+    turnStepper(iStepX); 
+    setHigh(iDirY);
+    turnStepper(iStepY);
     
-    setLow(iDirA);
-    turnStepper(iStepA); 
-    setLow(iDirB);
-    turnStepper(iStepB);    
+    setLow(iDirX);
+    turnStepper(iStepX); 
+    setLow(iDirY);
+    turnStepper(iStepY);    
   }
   */
   while (Serial.available() > 0) {
@@ -126,7 +137,22 @@ void processMsg(String &txtMsg) {
      txtMsg = "";
      return;
    }
+   // x,y coordinates
+   if(txtMsg.indexOf(",") > 0) { // we have a coordinate pair, move stepper
+     parseXY(txtMsg);
+     txtMsg = "";
+   }
    txtMsg = ""; 
+}
+
+void parseXY(String txtMsg) {
+  String strDelim = ","; // TODO move to config file
+  int iPos = txtMsg.indexOf(strDelim);
+  String strCoord = txtMsg.substring(0, iPos);
+  int iX = strCoord.toInt();
+  strCoord =  txtMsg.substring(iPos+1);
+  int iY = strCoord.toInt();
+  setPos(iX, iY);
 }
 
 void setval(String txtMsg)
@@ -151,12 +177,52 @@ void setval(String txtMsg)
 }
 
 // Move steppers so spray can goes to required spot
-void setPos(int x, int y) {
+void setPos(int iX, int iY) {
+  // calculate new hypotenuse (length of timing belt
   // Origin (0,0) set at top left
-  Serial.print("x = ");
-  Serial.println(x);
-  Serial.print("y = ");
-  Serial.println(y);  
+  if(SERIAL_DEBUG) {
+    Serial.print("x = ");
+    Serial.println(iX);
+    Serial.print("y = ");
+    Serial.println(iY); 
+  }
+  windX(iX);
+  windY(iY);
+}
+
+void moveX(int iX) {
+  // Subtract the required position from the current position
+  // e.g. current = 25, required = 10 ~ move = required - current = -15
+  windX(iX - iCurrPosX);
+  iCurrPosX = abs(iX); // e.g. current position after move ~ 
+}
+
+void windX(int iX) {
+  if(iX > 0) {
+    setHigh(iDirX);
+  } else {
+    setLow(iDirX);
+  }
+  int iTotalSteps = abs(iX - iCurrPosX) * iCoordMult;
+  for(int i = 0; i <= iCoordMult; i++) {
+    oneStep(iStepX);
+  }
+  // keep track of where we are
+  iCurrPosX = abs(iX);
+}
+
+void windY(int iY) {
+  if(iY > 0) {
+    setHigh(iDirY);
+  } else {
+    setLow(iDirY);
+  }
+  int iTotalSteps = abs(iY - iCurrPosY) * iCoordMult;
+  for(int i = 0; i <= iCoordMult; i++) {
+    oneStep(iStepY);
+  }
+  // keep track of where we are
+  iCurrPosY = abs(iY);
 }
 
 void servoOn(Servo myServo) {
@@ -187,5 +253,19 @@ void servoOff(Servo myServo) {
   delay(15);
 }
 
+void unWindX(int iDistance) {
+  setLow(iDirX);
+  oneStep(iStepX);
+}
 
+void unWindY(int iDistance) {
+  setHigh(iDirY);
+  oneStep(iStepY);
+}
 
+void oneStep(int iStepPin) {
+    digitalWrite(iStepPin, HIGH);
+    delay(iStepDelay);
+    digitalWrite(iStepPin, LOW);
+    delay(iStepDelay);  
+}
